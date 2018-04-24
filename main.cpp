@@ -7,17 +7,17 @@ using namespace VRmUsbCamCPP;
 
 
 const String keys =
-                "{help h usage ? |                | print this message          }"
-                "{board_w        |9               | board width                 }"
-                "{board_h        |6               | board height                }"
-                "{n_boards       |12              | number of board pic         }"
-                "{squaresize     |0.026           | size of board square         }"
-                "{calibrate      |                | Calibrate?                  }"
-                "{paramsFilename |CameraParams.yml| path to param file  }"
-                "{reset          |                | reset cameras               }"
-                "{algorithm      |SGBM            | select stereo algorithm     }"
-                "{r              |                | read from files?            }"
-                "{webcam         |                | UseWebCam                   }"
+                "{help h usage ? |                             | print this message          }"
+                "{board_w        |9                            | board width                 }"
+                "{board_h        |6                            | board height                }"
+                "{n_boards       |12                           | number of board pic         }"
+                "{squaresize     |0.026                        | size of board square         }"
+                "{calibrate      |                             | Calibrate?                  }"
+                "{paramsFilename |Parameters/CameraParams.yml  | path to param file  }"
+                "{reset          |                             | reset cameras               }"
+                "{algorithm      |SGBM                         | select stereo algorithm     }"
+                "{r              |                             | read from files?            }"
+                "{webcam         |                             | UseWebCam                   }"
 ;
 
 int exposure_slider;
