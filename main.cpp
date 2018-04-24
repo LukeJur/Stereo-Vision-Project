@@ -13,7 +13,7 @@ const String keys =
                 "{n_boards       |12                           | number of board pic         }"
                 "{squaresize     |0.026                        | size of board square         }"
                 "{calibrate      |                             | Calibrate?                  }"
-                "{paramsFilename |Parameters/CameraParams.yml  | path to param file  }"
+                "{paramsFilename |../Parameters/CameraParams.yml  | path to param file  }"
                 "{reset          |                             | reset cameras               }"
                 "{algorithm      |SGBM                         | select stereo algorithm     }"
                 "{r              |                             | read from files?            }"
@@ -51,6 +51,8 @@ int main(int argc, char const *argv[])
     bool calibrate = parser.has("calibrate");
     bool resetCameras = parser.has("reset");
     string paramsFilename = parser.get<string>("paramsFilename");
+
+    cout << paramsFilename << endl;
 
     if (!parser.check())
     {

@@ -51,8 +51,10 @@ bool stereovision::calibrateStereo(const string &_fileName)
     vector< vector<cv::Point3f> > object_points;
     cv::Mat left_intrinsic_matrix, left_dist_coeffs;
 
-    double last_timestamp = 0;
 
+    cout << "Calibrating left camera..." << endl;
+
+    double last_timestamp = 0;
     do {
         while (image_points.size() < (size_t) n_boards - 4) {
 
@@ -129,7 +131,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
 
 
         std::cout << "Parameters Calculated with error: " << err << std::endl;
-        std::cout << "Press 'r' to repeat else press 'n' " << std::endl;
+        std::cout << "Press 'r' to repeat else press 'b' " << std::endl;
 
         std::cin >> key;
         std::cout << key << std::endl;
@@ -140,7 +142,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
         }
 
 
-        if(key == 'n')
+        if(key == 'b')
             repeat = false;
 
         image_points.clear();
@@ -160,6 +162,8 @@ bool stereovision::calibrateStereo(const string &_fileName)
     Mat rightImage;
     last_timestamp = 0;
     cv::Mat right_intrinsic_matrix, right_dist_coeffs;
+
+    cout << "Calibrating right camera..." << endl;
 
     do {
 
@@ -237,7 +241,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
 
         std::cout << "Parameters Calculated with error: " << errR << std::endl;
 
-        std::cout << "Press 'r' to repeat else press 'n' " << std::endl;
+        std::cout << "Press 'r' to repeat else press 'b' " << std::endl;
 
         std::cin >> key;
         std::cout << key << std::endl;
@@ -247,7 +251,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
             repeat = true;
         }
 
-        if(key == 'n')
+        if(key == 'b')
             repeat = false;
 
         image_points.clear();
@@ -274,7 +278,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
     vector< vector<cv::Point2f> > right_image_points;
 
 
-
+    cout << "Calibrating stereo system..." << endl;
     do {
         while (left_image_points.size() < (size_t) n_boards) {
 
@@ -391,7 +395,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
         return false;
     }
 
-        std::cout << "Press 'r' to repeat else press 'n' " << std::endl;
+        std::cout << "Press 'r' to repeat else press 'b' " << std::endl;
         key = 0;
         std::cin >> key;
         std::cout << key << std::endl;
@@ -402,7 +406,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
         }
 
 
-        if(key == 'n')
+        if(key == 'b')
             repeat = false;
 
         left_image_points.clear();
