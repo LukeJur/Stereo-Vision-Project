@@ -1,7 +1,3 @@
-//
-// Created by luke on 11.01.18.
-//
-
 #include "stereovision.h"
 #include "camerahandle.h"
 
@@ -115,8 +111,6 @@ bool stereovision::calibrateStereo(const string &_fileName)
                           << std::endl;
             }
 
-
-//            cv::imshow("Left Camera", leftImage);
             cv::imshow("Left Camera", leftImageVisual);
             if ((cv::waitKey(25) & 255) == 257)
                 return -1;
@@ -185,7 +179,6 @@ bool stereovision::calibrateStereo(const string &_fileName)
                 std::cout << "Error while capturing right image occured: " << exc.what() << std::endl;
                 return -1;
             }
-
 
             Mat temp;
             Mat grayR;
@@ -453,9 +446,6 @@ bool stereovision::loadCalibParam(const string &_fileName)
 {
 
     cv::FileStorage input_file(_fileName, cv::FileStorage::READ);
-//    input_file.open(_fileName, FileStorage::READ);
-  //  if(!input_file.isOpened())
-    //    return false;
 
     input_file["left_camera_matrix"] >> this->calibParam.left_K;
     input_file["left_distortion_coefficients"] >> this->calibParam.left_D;
@@ -472,7 +462,6 @@ bool stereovision::loadCalibParam(const string &_fileName)
     input_file["translation_vector"] >> this->calibParam.T;
 
     input_file.release();
-
 
     return 1;
 }
@@ -532,21 +521,14 @@ bool stereovision::computeSGBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_
     left_for_matcher = _leftRectImage.clone();
     right_for_matcher = _rightRectImage.clone();
 
-//    cvtColor(left_for_matcher,left_for_matcher, CV_BGR2GRAY);
-//    cvtColor(right_for_matcher,right_for_matcher, CV_BGR2GRAY);
-
 
     Ptr<StereoSGBM> sgbm = StereoSGBM::create(0,this->ndisparities,this->SADWindowSize);
 
     int cn = _leftRectImage.channels();
     int P1 = 8*cn*this->SADWindowSize*this->SADWindowSize, P2 = 32*cn*this->SADWindowSize*this->SADWindowSize;
 
-    sgbm->setP1(P1);
-    sgbm->setP2(P2);
-//    sgbm->setP1(600);
-//    sgbm->setP2(2400);
-//    sgbm->setP1(24*this->SADWindowSize*this->SADWindowSize);
-//    sgbm->setP2(96*this->SADWindowSize*this->SADWindowSize);
+    sgbm->setP1(24*this->SADWindowSize*this->SADWindowSize);
+    sgbm->setP2(96*this->SADWindowSize*this->SADWindowSize);
     sgbm->setMinDisparity(this->minDisparity - 200);
     sgbm->setUniquenessRatio(this->uniqRatio);
     sgbm->setSpeckleWindowSize(this->speckWinSize);
@@ -619,7 +601,6 @@ bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_re
     sbm->setPreFilterSize(this->preFilterSize % 2 == 0 ? this->preFilterSize += 1: this->preFilterSize );
     sbm->setPreFilterCap(this->preFilterCap > 0 ? this->preFilterCap : 1 );
     sbm->setMinDisparity(this->minDisparity - 200);
-////    sbm->setMinDisparity(0);
     sbm->setTextureThreshold(this->textureTreshold);
     sbm->setUniquenessRatio(this->uniqRatio);
     sbm->setSpeckleWindowSize(this->speckWinSize);
@@ -677,20 +658,20 @@ void stereovision::visualizeResults(const Mat& _rawDisparity, const Mat& _filter
     namedWindow("raw disparity", WINDOW_AUTOSIZE);
     imshow("raw disparity", raw_disp_vis);
 
-    getDisparityVis(_filteredDisparity,filtered_disp_vis,1);
+    getDisparityVis(_filteredDisparity,filtered_disp_vis,this->colorScale/100);
     namedWindow("filtered disparity", WINDOW_AUTOSIZE);
     imshow("filtered disparity", filtered_disp_vis);
 
     applyColorMap(filtered_disp_vis,result, COLORMAP_JET);
 
-    if(distance !=0) {
+    if(this->mouseInput.size().width != 0 || this->mouseInput.size().height != 0) {
         std::ostringstream ss;
         ss << distance;
         std::string text(ss.str());
 
-        putText(result, text, cvPoint(this->mouseInput.x, this->mouseInput.y + 10),
-                FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200, 200, 250), 1, CV_AA);
-        rectangle(result, this->mouseInput, Scalar(200, 200, 250), 2);
+        putText(result, text, cvPoint(this->mouseInput.x, this->mouseInput.y - 10),
+                FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(0, 0, 0), 1, CV_AA);
+        rectangle(result, this->mouseInput, Scalar(0, 0, 0), 2);
     }
 
     imshow("Disparity result", result);
@@ -698,10 +679,6 @@ void stereovision::visualizeResults(const Mat& _rawDisparity, const Mat& _filter
 
 float stereovision::reprojectTo3DPoint(const Rect& ROI, const Mat& _disparityMap)
 {
-//    cv::Mat_<cv::Vec3f> XYZ(disparity32F.rows,disparity32F.cols);   // Output point cloud
-//    cv::Mat_<float> vec_tmp(4,1);
-
-
     Mat Q_32F;
     this->calibParam.Q.convertTo(Q_32F,CV_32F);
 
@@ -738,73 +715,184 @@ float stereovision::reprojectTo3DPoint(const Rect& ROI, const Mat& _disparityMap
     return vec_tmp(2);
 }
 
+
+void stereovision::visualizePointCloud(const Mat& _disparityMap, const Mat& _colorMap)
+{
+//    Mat colorMap = _colorMap;
+//    Mat dispMap = _disparityMap;
+//    static bool firstCall;
+//
+//    Mat Q_32F;
+//    this->calibParam.Q.convertTo(Q_32F,CV_32F);
+//
+//    Mat disparity32F;
+//    _disparityMap.convertTo(disparity32F,CV_32F,1./16);
+//
+//    std::vector<Point3f> XYZ_Vec;
+//    std::vector<Vec3b> RGB_Vec;
+//
+//    cv::Mat_<cv::Vec3f> XYZ(disparity32F.rows,disparity32F.cols);   // Output point cloud
+//    cv::Mat_<float> vec_tmp(4,1);
+//    for(int y=0; y<disparity32F.rows; ++y) {
+//        for(int x=0; x<disparity32F.cols; ++x) {
+//            vec_tmp(0)=x; vec_tmp(1)=y; vec_tmp(2)=disparity32F.at<float>(y,x); vec_tmp(3)=1;
+//            vec_tmp = Q_32F*vec_tmp;
+//            vec_tmp /= vec_tmp(3);
+//            cv::Vec3f &point = XYZ.at<cv::Vec3f>(y,x);
+//            point[0] = vec_tmp(0);
+//            point[1] = vec_tmp(1);
+//            point[2] = vec_tmp(2);
+//
+//            XYZ_Vec.push_back(Point3f(vec_tmp(0),vec_tmp(1),vec_tmp(2)));
+//            RGB_Vec.push_back(colorMap.at<Vec3b>(y,x));
+//        }
+//    }
+//
+//    /// Pointcloud 3d window viz
+//    static cv::viz::Viz3d window("Coordinate Frame");
+//
+//    window.removeAllWidgets();
+//    window.showWidget("Coordinate Widget", cv::viz::WCoordinateSystem());
+////    viz::WCloud cw(XYZ, croppedColorMap);
+//    viz::WCloud cw(XYZ_Vec, RGB_Vec);
+//    cw.setRenderingProperty(cv::viz::POINT_SIZE, 2);
+//
+//    window.showWidget("Cloud Widget", cw);
+////    ///Plot 3D bounding frames of detected objects
+////    for(int i = 0; i < _outBBoxStruct.size(); i++) {
+////
+////        string text = getDetectedObject(_detectedClass[i]);
+////        string Frame,ObjectType;
+////
+////        Frame = "Frame" + std::to_string(i);
+////        ObjectType = "ObjType" + std::to_string(i);
+////
+////        std::vector<Point3f> cornerPoints = getRealFrame(_outBBoxStruct[i]);
+////        viz::WText3D text3D(text,Point3f(cornerPoints[3].x,cornerPoints[3].y,cornerPoints[3].z), 0.17);
+////        viz::WPolyLine boundingFrame(cornerPoints, cv::viz::Color::red() );
+////        window.showWidget(Frame, boundingFrame);
+////        window.showWidget(ObjectType, text3D);
+////    }
+//
+//    window.spinOnce(10, true);
+////    if(!firstCall) {
+////        /// Let's assume camera has the following properties
+////        Point3d cam_origin(3.0, 3.0, 3.0), cam_focal_point(3.0, 3.0, 2.0), cam_y_dir(0.0, 0.0, 0.0);
+////
+////        /// We can get the pose of the cam using makeCameraPose
+////        Affine3d camera_pose = viz::makeCameraPose(cam_origin, cam_focal_point, cam_y_dir);
+////
+//////    Mat R(3,3,CV_32F);
+////
+////        Matx33f R(0.98f, -0.08f, -0.13f,
+////                  0.08f, 0.99f, -0.005f,
+////                  0.13f, -0.005f, 0.99f);
+////
+//////    R.at(0,0) = 0.98f;
+//////    R.at<float>(0,1) = -0.08f;
+//////    R.at<float>(0,2) = -0.13f;
+////
+//////    R.at<float>(1,0) = 0.08f;
+//////    R.at<float>(1,1) = 0.99f;
+//////    R.at<float>(1,2) = -0.005f;
+////
+//////    R.at<float>(2,0) = 0.13f;
+//////    R.at<float>(2,1) = -0.005f;
+//////    R.at<float>(2,2) = 0.99f;
+////
+////        cout << R << endl;
+////
+////        Vec3f t;
+////        t[0] = 0.29f;
+////        t[1] = -0.18f;
+////        t[2] = -2.15f;
+////
+////        cout << t << endl;
+////
+////        Affine3d startPose(R,t);
+////
+////        window.setViewerPose(startPose);
+////
+////        firstCall = true;
+////    }
+//
+//
+//
+////    Camera cam = window.getCamera();
+//    Affine3d pose3d = window.getViewerPose();
+//
+//    cout << "\n rvec " << pose3d.rotation() << "trans" << pose3d.translation() << endl;
+}
+
 bool stereovision::displayTrackbar(){
 
-
     /// Control BM parameters Winodw
-    namedWindow("BM stereo parameters control", WINDOW_AUTOSIZE);
+    namedWindow("Stereo parameters control",WINDOW_FREERATIO);
+
+    Mat logo = imread("../logo.jpg");
+    imshow("Stereo parameters control", logo);
 
     char dispNumb[50];
     sprintf(dispNumb, "Disparity range");
-    createTrackbar(dispNumb, "BM stereo parameters control", &ndisparities, 500, trackbarLink);
+    createTrackbar(dispNumb, "Stereo parameters control", &ndisparities, 500, trackbarLink);
 
     char windowSize[50];
     sprintf(windowSize, "Window size");
-    createTrackbar(windowSize, "BM stereo parameters control", &SADWindowSize, 25, trackbarLink);
+    createTrackbar(windowSize, "Stereo parameters control", &SADWindowSize, 25, trackbarLink);
 
     char minDisp[50];
     sprintf(minDisp, "Min disparity");
-    createTrackbar(minDisp, "BM stereo parameters control", &minDisparity, 800, trackbarLink);
+    createTrackbar(minDisp, "Stereo parameters control", &minDisparity, 800, trackbarLink);
 
     char uniqRat[50];
     sprintf(uniqRat, "Unique ratio");
-    createTrackbar(uniqRat, "BM stereo parameters control", &uniqRatio, 40, trackbarLink);
+    createTrackbar(uniqRat, "Stereo parameters control", &uniqRatio, 40, trackbarLink);
 
     char speckWinS[50];
     sprintf(speckWinS, "Speckle wind size");
-    createTrackbar(speckWinS, "BM stereo parameters control", &speckWinSize, 500, trackbarLink);
+    createTrackbar(speckWinS, "Stereo parameters control", &speckWinSize, 500, trackbarLink);
 
     char speckR[50];
     sprintf(speckR, "Speckle range");
-    createTrackbar(speckR, "BM stereo parameters control", &speckRange, 10, trackbarLink);
+    createTrackbar(speckR, "Stereo parameters control", &speckRange, 10, trackbarLink);
 
     char dispMaxD[50];
     sprintf(dispMaxD, "Disparity max diff");
-    createTrackbar(dispMaxD, "BM stereo parameters control", &dispMaxDiff, 1000, trackbarLink);
+    createTrackbar(dispMaxD, "Stereo parameters control", &dispMaxDiff, 1000, trackbarLink);
 
     char preFilterC[50];
     sprintf(preFilterC, "Prefilter cap");
-    createTrackbar(preFilterC, "BM stereo parameters control", &preFilterCap, 300, trackbarLink);
+    createTrackbar(preFilterC, "Stereo parameters control", &preFilterCap, 300, trackbarLink);
 
     char preFilterS[50];
     sprintf(preFilterS, "Prefilter size");
-    createTrackbar(preFilterS, "BM stereo parameters control", &preFilterSize, 200, trackbarLink);
+    createTrackbar(preFilterS, "Stereo parameters control", &preFilterSize, 200, trackbarLink);
 
     char textureTresh[50];
     sprintf(textureTresh, "Texture treshold");
-    createTrackbar(textureTresh, "BM stereo parameters control", &textureTreshold, 600, trackbarLink);
+    createTrackbar(textureTresh, "Stereo parameters control", &textureTreshold, 600, trackbarLink);
 
     char lambdaV[50];
     sprintf(lambdaV, "Lambda");
-    createTrackbar(lambdaV, "BM stereo parameters control", &lambda, 10000, trackbarLink);
+    createTrackbar(lambdaV, "Stereo parameters control", &lambda, 10000, trackbarLink);
 
     char sigmaV[50];
     sprintf(sigmaV, "Sigma");
-    createTrackbar(sigmaV, "BM stereo parameters control", &sigma, 1000 , trackbarLink);
+    createTrackbar(sigmaV, "Stereo parameters control", &sigma, 1000 , trackbarLink);
 
+    char colorGain[50];
+    sprintf(colorGain, "Color Gain");
+    createTrackbar(colorGain, "Stereo parameters control", &colorScale, 1000 , trackbarLink);
+
+    waitKey(20);
 }
 
 
-bool stereovision::readFromImage(Mat &_leftRectImage, Mat &_rightRectImage, bool firstCall)
+bool stereovision::readFromImage(Mat &_leftRectImage, Mat &_rightRectImage)
 {
-
     static VideoCapture capL("images/I1_%06d.png"),capR("images/I2_%06d.png");
 
-
         std::cout << "Init done" << std::endl;
-//         capL.open("images/I1_%06d.png");
-//         capR.open("images/I2_%06d.png");
-
 
         if (!capL.isOpened()) {// check if we succeeded
             std::cout << "Error reading images L" << std::endl;
@@ -817,7 +905,6 @@ bool stereovision::readFromImage(Mat &_leftRectImage, Mat &_rightRectImage, bool
 
         capL >> _leftRectImage;
         capR >> _rightRectImage;
-
 
     return 1;
 }

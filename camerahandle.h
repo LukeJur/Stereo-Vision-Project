@@ -1,8 +1,6 @@
-//
-// Created by luke on 19.12.17.
-//
-#ifndef STEREOVISIONPROJECT_MAIN_H
-#define STEREOVISIONPROJECT_MAIN_H
+#ifndef STEREOVISIONPROJECT_CAMERAHANDLE_H
+#define STEREOVISIONPROJECT_CAMERAHANDLE_H
+
 
 #include <iostream>
 #include <sstream>
@@ -24,32 +22,35 @@
 #include <iomanip>
 #include <fstream>
 
-
 #include <vrmusbcamcpp.h>
+#include "stereovision.h"
 
 #define LEFT_INDEX 1
 #define RIGHT_INDEX 2
 
+/// VRmUSB camera methods
+
 void initCamera(VRmUsbCamCPP::DevicePtr device, VRmDWORD& port, VRmUsbCamCPP::ColorFormat screen_colorformat, VRmUsbCamCPP::ImageFormat& target_format);
 
-void initCamera(int L_CAM,int R_CAM);
-
-cv::Mat readCamera(VRmUsbCamCPP::DevicePtr device, VRmDWORD& f_port);
+void openCamera (VRmUsbCamCPP::DevicePtr &deviceL,VRmUsbCamCPP::DevicePtr &deviceR);
 
 cv::Mat readSingleFrame(VRmUsbCamCPP::DevicePtr device, VRmDWORD& f_port);
 
-cv::Mat readLeftFrame();
-
-cv::Mat readRightFrame();
-
-void openCamera (VRmUsbCamCPP::DevicePtr &deviceL,VRmUsbCamCPP::DevicePtr &deviceR);
+void adjustExposure(VRmUsbCamCPP::DevicePtr& deviceL, VRmDWORD& f_portL,VRmUsbCamCPP::DevicePtr& deviceR, VRmDWORD& f_portR);
 
 void invertCameras(VRmUsbCamCPP::DevicePtr& deviceL, VRmDWORD& f_portL,VRmUsbCamCPP::DevicePtr& deviceR, VRmDWORD& f_portR);
 
 void CloseDevice(VRmUsbCamCPP::DevicePtr &device);
 
-void loadCameraConfig(VRmUsbCamCPP::DevicePtr deviceL,VRmUsbCamCPP::DevicePtr deviceR);
+void resetDevice(VRmUsbCamCPP::DevicePtr &deviceL, VRmUsbCamCPP::DevicePtr &deviceR);
 
 static VRmUsbCamCPP::ImageFormat final_target_format;
 
-#endif //STEREOVISIONPROJECT_MAIN_H
+/// Logitech camera methods
+
+cv::Mat readLeftFrame();
+
+cv::Mat readRightFrame();
+
+
+#endif //STEREOVISIONPROJECT_CAMERAHANDLE_H

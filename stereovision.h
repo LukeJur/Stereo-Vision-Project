@@ -1,9 +1,6 @@
-//
-// Created by luke on 11.01.18.
-//
-
 #ifndef STEREOVISIONPROJECT_STEREOVISION_H
 #define STEREOVISIONPROJECT_STEREOVISION_H
+
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/calib3d.hpp>
@@ -15,6 +12,7 @@
 #include <opencv2/ximgproc/disparity_filter.hpp>
 #include <opencv2/ximgproc/edge_filter.hpp>
 #include <opencv2/core/cuda.hpp>
+#include <opencv2/viz.hpp>
 
 #include <iostream>
 #include <vector>
@@ -98,7 +96,7 @@ public:
 
     bool displayTrackbar();
 
-    bool readFromImage(Mat &_leftRectImage, Mat &_rightRectImage,  bool firstCall);
+    bool readFromImage(Mat &_leftRectImage, Mat &_rightRectImage);
 
     Rect computeROI(Size2i src_sz, Ptr<StereoMatcher> matcher_instance);
 
@@ -112,6 +110,8 @@ private:
     void visualizeResults(const Mat& _rawDisparity, const Mat& _filteredDisparity);
 
     float reprojectTo3DPoint(const Rect& ROI,const Mat& _disparityMap);
+
+    void visualizePointCloud(const Mat& _disparityMap, const Mat& _colorMap);
 
 
     float squareSize;
