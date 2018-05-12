@@ -1,19 +1,17 @@
+/*
+ * Plik nagłówkowy zawierający metody obsługujące kamery
+ */
+
+/// Zabezpieczenie przed kilkukrotnym wczytaniem pliku nagłówkowego
 #ifndef STEREOVISIONPROJECT_CAMERAHANDLE_H
 #define STEREOVISIONPROJECT_CAMERAHANDLE_H
 
-
+/// Dodanie bibliotek wykorzystywanych w projekcie
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <ctime>
 #include <cstdio>
-#include <opencv2/core.hpp>
-#include <opencv2/core/utility.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/calib3d.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/videoio.hpp>
-#include <opencv2/highgui.hpp>
 #include <iostream>
 #include <sstream>
 #include <cstdlib>
@@ -22,17 +20,25 @@
 #include <iomanip>
 #include <fstream>
 
+#include <opencv2/core.hpp>
+#include <opencv2/core/utility.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/videoio.hpp>
+#include <opencv2/highgui.hpp>
+
 #include <vrmusbcamcpp.h>
 #include "stereovision.h"
 
+/// Definicja indeksu kamer Logitech
 #define LEFT_INDEX 1
 #define RIGHT_INDEX 2
 
-/// VRmUSB camera methods
+/// Zmienne i metody obsługujące kamery VRmUSB
+void openCamera (VRmUsbCamCPP::DevicePtr &deviceL,VRmUsbCamCPP::DevicePtr &deviceR);
 
 void initCamera(VRmUsbCamCPP::DevicePtr device, VRmDWORD& port, VRmUsbCamCPP::ColorFormat screen_colorformat, VRmUsbCamCPP::ImageFormat& target_format);
-
-void openCamera (VRmUsbCamCPP::DevicePtr &deviceL,VRmUsbCamCPP::DevicePtr &deviceR);
 
 cv::Mat readSingleFrame(VRmUsbCamCPP::DevicePtr device, VRmDWORD& f_port);
 
@@ -46,7 +52,7 @@ void resetDevice(VRmUsbCamCPP::DevicePtr &deviceL, VRmUsbCamCPP::DevicePtr &devi
 
 static VRmUsbCamCPP::ImageFormat final_target_format;
 
-/// Logitech camera methods
+/// Metody obsługujące kamery Logitech
 
 cv::Mat readLeftFrame();
 

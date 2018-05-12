@@ -130,6 +130,7 @@ int main(int argc, char const *argv[])
     /// Deklaracja okna wynikowego wraz z odwołaniem do obsługi myszki
     namedWindow("Disparity result", CV_WINDOW_NORMAL);
     setWindowProperty("Disparity result", CV_WND_PROP_ASPECTRATIO , CV_WINDOW_KEEPRATIO );
+    if(!readFile)
     cv::setMouseCallback("Disparity result", onMouseRectCallback, (void*)&stereoV.mouseInput);
 
     /// Główna pętla programu
@@ -168,7 +169,7 @@ int main(int argc, char const *argv[])
 
         /// Funkcja do usuwania zniekształceń oraz rektyfikacji obrazów
         if(!readFile) {
-            if (!stereoV.recityfImages(leftCam, rightCam, leftRectImage, rightRectImage, bothImages)) {
+            if (!stereoV.rectifyImages(leftCam, rightCam, leftRectImage, rightRectImage, bothImages)) {
                 std::cout << "Can not perform rectification" << std::endl;
             }
         }
@@ -193,19 +194,6 @@ int main(int argc, char const *argv[])
             imshow("Input images", bothCam);
             imshow("Rectified images", bothImages);
         }
-
-//        double aperWidth, aperHeight, fovx, fovy, focalLength,aspectRatio;
-//        Point2d principPoint;
-//        calibrationMatrixValues(stereoV.calibParam.left_K,leftRectImage.size(),aperWidth,aperHeight,fovx,fovy, focalLength, principPoint, aspectRatio);
-//
-//        cout << setprecision(4);
-//        cout << "Focal length: " << focalLength << endl;
-//        cout << "Aperture width: " << aperWidth << endl;
-//        cout << "Aperture height: " << aperHeight << endl;
-//        cout << "FOV x: " << fovx << endl;
-//        cout << "FOV y: " << fovy << endl;
-//        cout << "Principal Point: " << principPoint << endl;
-//        cout << "Aspect Ratio: " << aspectRatio << endl;
 
         /// Odczytanie czasu trwania jednego cyklu programu
         programTime = ((double)getTickCount() - programTime)/getTickFrequency();

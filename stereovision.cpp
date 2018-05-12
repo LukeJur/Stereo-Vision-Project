@@ -1,59 +1,29 @@
 #include "stereovision.h"
 #include "camerahandle.h"
 
-
-Rect stereovision::computeROI(Size2i src_sz, Ptr<StereoMatcher> matcher_instance)
-{
-    int min_disparity = matcher_instance->getMinDisparity();
-    int num_disparities = matcher_instance->getNumDisparities();
-    int block_size = matcher_instance->getBlockSize();
-
-    int bs2 = block_size/2;
-    int minD = min_disparity, maxD = min_disparity + num_disparities - 1;
-
-    int xmin = maxD + bs2;
-    int xmax = src_sz.width + minD - bs2;
-    int ymin = bs2;
-    int ymax = src_sz.height - bs2;
-
-    Rect r(xmin, ymin, xmax - xmin, ymax - ymin);
-    return r;
-}
-
-void record(cv::Mat &image)
-{
-    static cv::VideoWriter writer;
-    if (!writer.isOpened())
-    {
-        int codec = CV_FOURCC('M','J','P','G');
-        double fps = 15.0;
-        writer.open("sv_result.avi",codec,fps,image.size());
-    }
-    if(writer.isOpened())
-    {
-        writer.write(image);
-    }
-    else
-        printf("wideo write failed\n");
-}
-
+/// Kalibracja kamer
 bool stereovision::calibrateStereo(const string &_fileName)
 {
-    /// Left camera calibration - extracting intrinisic and distortion coeff
-    Mat leftImage;
+    ////// Kalibracja lewej kamery //////
+
+    /// Zmienne funkcyjne metody
     char key;
     bool repeat;
+
+    /// Deklaracja kontenera obrazu, macierzy oraz punktów szachownicy
+    Mat leftImage,left_intrinsic_matrix,left_dist_coeffs;
     vector< vector<cv::Point2f> > image_points;
     vector< vector<cv::Point3f> > object_points;
-    cv::Mat left_intrinsic_matrix, left_dist_coeffs;
-
 
     cout << "Calibrating left camera..." << endl;
+    cout << "Press 'n' to capture image" << endl;
 
+    /// Zmienna czasowa
     double last_timestamp = 0;
+    /// Pętla kalibracyjna
     do {
         while (image_points.size() < (size_t) n_boards - 4) {
-
+            /// Wczytanie obrazów kamer do pamięci
             try {
                 if(this->useWebCam){
                     leftImage = readLeftFrame();
@@ -71,29 +41,37 @@ bool stereovision::calibrateStereo(const string &_fileName)
                 return -1;
             }
 
-
-            Mat temp;
+            /// Kontener na obraz w skali szarośći
             Mat grayL;
+            /// Wektor punktów 2D z lokalizacją rogów szachownicy
             vector<cv::Point2f> cornersL;
+            /// Bit wskazujący na znaleziecie przez algorytm szachownicy w polu widzenia kamery
             bool foundL;
 
+            /// Zamiana formatu koloru z BGR na skale szarości
             cv::cvtColor(leftImage, grayL, CV_BGR2GRAY);
+            /// Kopia obrazu do wizualizacji
             Mat leftImageVisual = leftImage.clone();
 
+            /// Metoda szukająca szachownicy na obrazie - wynik zapisywany w cornersL
             foundL = cv::findChessboardCorners(leftImage, board_sz, cornersL,
                                                CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FILTER_QUADS);
+            /// Jeżeli szachownica jest w polu widzenia przeprowadzone jest dokładniejsze szukanie w skali szarości
             if (foundL) {
                 cv::cornerSubPix(grayL, cornersL, cv::Size(5, 5), cv::Size(-1, -1),
                                  cv::TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 30, 0.1));
+
+                /// Rysowanie znalezionych rogów
                 drawChessboardCorners(leftImageVisual,board_sz,cornersL,foundL);
             }
 
-
+            /// Zmienna czasowa
             double timestamp = (double) clock() / CLOCKS_PER_SEC;
 
+            /// Odczytanie wciśniętego klawisza
             key = waitKey(1) & 0xff;
 
-
+            /// Zapisanie znalezionych rogów oraz stworzenie wektora z rzeczywistymi współrzędnymi
             if (foundL && ((timestamp - last_timestamp > 0.1) && key == 'n')) {
                 last_timestamp = timestamp;
 
@@ -110,7 +88,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
                 std::cout << "Collected " << (int) image_points.size() << " from " << n_boards << " required \n"
                           << std::endl;
             }
-
+            /// Wizualizacja procesu kalibracji
             cv::imshow("Left Camera", leftImageVisual);
             if ((cv::waitKey(25) & 255) == 257)
                 return -1;
@@ -118,12 +96,12 @@ bool stereovision::calibrateStereo(const string &_fileName)
 
         std::cout << "Left camera data collected" << std::endl;
 
-        /// Get parameters
+        /// Wyliczenie parametrów kamery
         double err = cv::calibrateCamera(object_points, image_points, leftImage.size(), left_intrinsic_matrix,
                                          left_dist_coeffs, cv::noArray(), cv::noArray(),
                                          cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_FIX_PRINCIPAL_POINT);
 
-
+        /// Jeżeli błąd jest duży można ponowić proces
         std::cout << "Parameters Calculated with error: " << err << std::endl;
         std::cout << "Press 'r' to repeat else press 'b' " << std::endl;
 
@@ -134,11 +112,9 @@ bool stereovision::calibrateStereo(const string &_fileName)
             std::cout <<"Repeating calibration" << std::endl;
             repeat = true;
         }
-
-
         if(key == 'b')
             repeat = false;
-
+        /// Zerowanie kontenerów
         image_points.clear();
         image_points.begin();
         object_points.clear();
@@ -146,23 +122,41 @@ bool stereovision::calibrateStereo(const string &_fileName)
 
     }while(repeat);
 
+    /// Wyliczenie parametrów kamery na podstawie macierzy i ich wyświetlenie
+    double aperWidth, aperHeight, fovx, fovy, focalLength,aspectRatio;
+    Point2d principPoint;
+    calibrationMatrixValues(calibParam.left_K, leftImage.size(), aperWidth, aperHeight, fovx, fovy, focalLength, principPoint, aspectRatio);
+
+    cout << "Calculated left camera parameters:" << endl << endl;
+    cout << setprecision(4);
+    cout << "Focal length: " << focalLength << endl;
+    cout << "Aperture width: " << aperWidth << endl;
+    cout << "Aperture height: " << aperHeight << endl;
+    cout << "FOV x: " << fovx << endl;
+    cout << "FOV y: " << fovy << endl;
+    cout << "Principal Point: " << principPoint << endl;
+    cout << "Aspect Ratio: " << aspectRatio << endl;
     std::cout << "Parameters (Left cam) saved" << std::endl;
 
     destroyWindow("Left Camera");
 
 
-    /// Right camera calibration - extracting intrinisic and distortion coeff
+    ////// Kalibracja prawej kamery ///////
 
-    Mat rightImage;
+    /// Deklaracja kontenera obrazu, macierzy
+    Mat rightImage,right_intrinsic_matrix, right_dist_coeffs;
+
+    /// Zerowanie zmiennej czasowej
     last_timestamp = 0;
-    cv::Mat right_intrinsic_matrix, right_dist_coeffs;
 
     cout << "Calibrating right camera..." << endl;
+    cout << "Press 'n' to capture image" << endl;
 
+    /// Pętla kalibracyjna
     do {
-
         while (image_points.size() < (size_t) n_boards - 4) {
 
+            /// Wczytanie obrazów kamer do pamięci
             try {
                 if(this->useWebCam) {
                     rightImage = readRightFrame();
@@ -180,27 +174,39 @@ bool stereovision::calibrateStereo(const string &_fileName)
                 return -1;
             }
 
-            Mat temp;
+            /// Kontener na obraz w skali szarośći
             Mat grayR;
+            /// Wektor punktów 2D z lokalizacją rogów szachownicy
             vector<cv::Point2f> cornersR;
+            /// Bit wskazujący na znaleziecie przez algorytm szachownicy w polu widzenia kamery
             bool foundR;
 
+            /// Zamiana formatu koloru z BGR na skale szarości
             cv::cvtColor(rightImage, grayR, CV_BGR2GRAY);
+            /// Kopia obrazu do wizualizacji
             Mat rightImageVisual = rightImage.clone();
 
+
+            /// Metoda szukająca szachownicy na obrazie - wynik zapisywany w cornersL
             foundR = cv::findChessboardCorners(rightImage, board_sz, cornersR,
                                                CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FILTER_QUADS);
+
+            /// Jeżeli szachownica jest w polu widzenia przeprowadzone jest dokładniejsze szukanie w skali szarości
             if (foundR) {
                 cv::cornerSubPix(grayR, cornersR, cv::Size(5, 5), cv::Size(-1, -1),
                                  cv::TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 30, 0.1));
+
+                /// Rysowanie znalezionych rogów
                 drawChessboardCorners(rightImageVisual,board_sz,cornersR,foundR);
             }
 
+            /// Zmienna czasowa
             double timestamp = (double) clock() / CLOCKS_PER_SEC;
 
+            /// Odczytanie wciśniętego klawisza
             key = waitKey(1) & 0xff;
 
-
+            /// Zapisanie znalezionych rogów oraz stworzenie wektora z rzeczywistymi współrzędnymi
             if (foundR && (timestamp - last_timestamp > 0.1 && key == 'n')) {
                 last_timestamp = timestamp;
 
@@ -217,7 +223,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
                           << std::endl;
             }
 
-
+            /// Wizualizacja procesu kalibracji
             cv::imshow("Right Camera", rightImageVisual);
 
             if ((cv::waitKey(25) & 255) == 257)
@@ -226,14 +232,14 @@ bool stereovision::calibrateStereo(const string &_fileName)
 
         std::cout << "Right camera data collected" << std::endl;
 
-        /// Get parameters
+        /// Wyliczenie parametrów kamery
         double errR = cv::calibrateCamera(object_points, image_points, rightImage.size(), right_intrinsic_matrix,
                                           right_dist_coeffs, cv::noArray(), cv::noArray(),
                                           cv::CALIB_ZERO_TANGENT_DIST | cv::CALIB_FIX_PRINCIPAL_POINT);
 
 
+        /// Jeżeli błąd jest duży można powtórzyć proces
         std::cout << "Parameters Calculated with error: " << errR << std::endl;
-
         std::cout << "Press 'r' to repeat else press 'b' " << std::endl;
 
         std::cin >> key;
@@ -243,10 +249,9 @@ bool stereovision::calibrateStereo(const string &_fileName)
             std::cout <<"Repeating calibration" << std::endl;
             repeat = true;
         }
-
         if(key == 'b')
             repeat = false;
-
+        /// Zerowanie kontenerów
         image_points.clear();
         image_points.begin();
         object_points.clear();
@@ -255,33 +260,50 @@ bool stereovision::calibrateStereo(const string &_fileName)
 
     }while (repeat);
 
+    /// Wyliczenie parametrów kamery na podstawie macierzy i ich wyświetlenie
+    calibrationMatrixValues(calibParam.right_K, rightImage.size(), aperWidth, aperHeight, fovx, fovy, focalLength, principPoint, aspectRatio);
+
+    cout << "Calculated right camera parameters:" << endl << endl;
+    cout << setprecision(4);
+    cout << "Focal length: " << focalLength << endl;
+    cout << "Aperture width: " << aperWidth << endl;
+    cout << "Aperture height: " << aperHeight << endl;
+    cout << "FOV x: " << fovx << endl;
+    cout << "FOV y: " << fovy << endl;
+    cout << "Principal Point: " << principPoint << endl;
+    cout << "Aspect Ratio: " << aspectRatio << endl;
     std::cout << "Parameters (right cam) saved" << std::endl;
 
     destroyWindow("Right Camera");
 
-    /// Proper stereo calib
-    Mat temp;
+    ////// Kalibracja Stereo ///////
+
+    /// Deklaracja kontenerów na obrazy oraz macierze
     Mat grayR,grayL;
     Mat R, E, F;
-    Vec3d T;
     Mat left_R, right_R, left_P, right_P, Q;
+    /// Wektor translacji
+    Vec3d T;
+    /// Deklaracja kontenerów na wykryte rogi szachownicy
     vector<cv::Point2f> cornersL;
     vector< vector<cv::Point2f> > left_image_points;
     vector<cv::Point2f> cornersR;
     vector< vector<cv::Point2f> > right_image_points;
 
-
     cout << "Calibrating stereo system..." << endl;
+    cout << "Press 'n' to capture image" << endl;
+
+    /// Pętla kalibracyjna
     do {
         while (left_image_points.size() < (size_t) n_boards) {
-
+            /// Wczytanie obrazów kamer do pamięci
             try {
                 if(this->useWebCam) {
                     leftImage = readLeftFrame();
                     rightImage = readRightFrame();
                 } else {
-                        leftImage = readSingleFrame(leftCamPtr, leftPort);
-                        rightImage = readSingleFrame(rightCamPtr, rightPort);
+                    leftImage = readSingleFrame(leftCamPtr, leftPort);
+                    rightImage = readSingleFrame(rightCamPtr, rightPort);
                 }
             }
             catch (exception exc) {
@@ -292,20 +314,27 @@ bool stereovision::calibrateStereo(const string &_fileName)
                 std::cout << "Error while capturing left image occured: " << exc.what() << std::endl;
                 return -1;
             }
+
+            /// Zamiana formatu koloru z BGR na skale szarości
             cv::cvtColor(leftImage, grayL, CV_BGR2GRAY);
             cv::cvtColor(rightImage, grayR, CV_BGR2GRAY);
+
+            /// Kopia obu obrazów do wizualizacji
             Mat leftImageVisual = leftImage.clone();
             Mat rightImageVisual = rightImage.clone();
+
+            /// Bit wskazujący na znaleziecie przez algorytm szachownicy w polu widzenia kamer
             bool foundL;
             bool foundR;
 
-
+            /// Metoda szukająca szachownicy na obrazie - wynik zapisywany w cornersL
             foundL = cv::findChessboardCorners(leftImage, board_sz, cornersL,
                                                CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FILTER_QUADS);
 
             foundR = cv::findChessboardCorners(rightImage, board_sz, cornersR,
                                                CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FILTER_QUADS);
 
+            /// Jeżeli szachownica jest w polu widzenia obu kamer, przeprowadzone jest dokładniejsze szukanie w skali szarości
             if (foundL && foundR) {
                 cv::cornerSubPix(grayL, cornersL, cv::Size(5, 5), cv::Size(-1, -1),
                                  cv::TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 30, 0.1));
@@ -313,26 +342,26 @@ bool stereovision::calibrateStereo(const string &_fileName)
                 cv::cornerSubPix(grayR, cornersR, cv::Size(5, 5), cv::Size(-1, -1),
                                  cv::TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 30, 0.1));
 
+                /// Rysowanie znalezionych rogów
                 drawChessboardCorners(leftImageVisual,board_sz,cornersL,foundL);
-
                 drawChessboardCorners(rightImageVisual,board_sz,cornersR,foundR);
             }
 
 
-
+            /// Wizualizacja procesu kalibracji
             cv::imshow("Left Camera", leftImageVisual);
             cv::imshow("Right Camera", rightImageVisual);
 
             if ((cv::waitKey(25) & 255) == 257)
                 return -1;
 
-
+            /// Zmienna czasowa
             double timestamp = (double) clock() / CLOCKS_PER_SEC;
 
+            /// Odczytanie wciśniętego klawisza
+            key = waitKey(1) & 0xff;
 
-
-             key = waitKey(1) & 0xff;
-
+            /// Zapisanie znalezionych rogów oraz stworzenie wektora z rzeczywistymi współrzędnymi
             if (foundL && foundR && timestamp - last_timestamp > 3 && key == 'n') {
 
 
@@ -355,15 +384,17 @@ bool stereovision::calibrateStereo(const string &_fileName)
 
         destroyAllWindows();
 
-
+        /// Sprawdzenie zawartości kontenerów
         if (object_points.size() != 0 && left_image_points.size() != 0 && right_image_points.size() != 0) {
             double calibStereoError;
 
+            /// Ustawienie parametrów kalibracji
             int flag = 0;
             flag |= CALIB_FIX_K3;
             flag |= CALIB_ZERO_TANGENT_DIST;
             flag |= CALIB_FIX_INTRINSIC;
 
+            /// Metoda wyliczająca macierz rotacji, fundamentalną, zasadniczą oraz wektor translacji
             calibStereoError = stereoCalibrate(object_points, left_image_points, right_image_points,
                                                left_intrinsic_matrix, left_dist_coeffs,
                                                right_intrinsic_matrix, right_dist_coeffs, leftImage.size(), R, T, E, F,flag);
@@ -373,21 +404,20 @@ bool stereovision::calibrateStereo(const string &_fileName)
 
             std::cout << "Starting Rectification parameters computing\n";
 
+            /// Metoda generująca macierze niezbędne do rektyfikacji
             stereoRectify(left_intrinsic_matrix, left_dist_coeffs, right_intrinsic_matrix, right_dist_coeffs,
                           leftImage.size(), R, T, left_R, right_R, left_P, right_P, Q, CALIB_ZERO_DISPARITY, -1,
                           leftImage.size(), &ROI1, &ROI2);
 
-//            stereoRectify(left_intrinsic_matrix, left_dist_coeffs, right_intrinsic_matrix, right_dist_coeffs,
-//                          leftImage.size(), R, T, left_R, right_R, left_P, right_P, Q);
-
             std::cout << "Rectification. Done." << endl;
         }
-    else
-    {
-        std::cout<<"Stereo calibration cannot be done!!!"<<endl<<endl;
-        return false;
-    }
+        else
+        {
+            std::cout<<"Stereo calibration cannot be done!!!"<<endl<<endl;
+            return false;
+        }
 
+        /// Jeżeli błąd kalibracji jest duży można powtórzyć proces
         std::cout << "Press 'r' to repeat else press 'b' " << std::endl;
         key = 0;
         std::cin >> key;
@@ -397,11 +427,10 @@ bool stereovision::calibrateStereo(const string &_fileName)
             std::cout <<"Repeating calibration" << std::endl;
             repeat = true;
         }
-
-
         if(key == 'b')
             repeat = false;
 
+        /// Zerowanie kontenerów
         left_image_points.clear();
         right_image_points.clear();
         image_points.clear();
@@ -411,6 +440,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
 
     }while(repeat);
 
+    /// Zapisanie wyniku kalibracji do pamięci komputera
     calibParam.left_K = left_intrinsic_matrix;
     calibParam.left_D = left_dist_coeffs;
     calibParam.right_K = right_intrinsic_matrix;
@@ -424,9 +454,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
     calibParam.right_P = right_P;
     calibParam.right_R = right_R;
 
-
-
-    //Save parameters to external file
+    /// Zapisanie wyniku kalibracji do zewnętrznego pliku
     cv::FileStorage fs(_fileName, FileStorage::WRITE);
     fs << "left_camera_matrix" << left_intrinsic_matrix << "left_distortion_coefficients" << left_dist_coeffs;
     fs << "right_camera_matrix" << right_intrinsic_matrix << "right_distortion_coefficients" << right_dist_coeffs;
@@ -437,14 +465,12 @@ bool stereovision::calibrateStereo(const string &_fileName)
     fs << "reprojection_matrix" << Q ;
     fs.release();
 
-
     return 1;
-
 }
 
+/// Wczytanie pliku z parametrami kalibracji
 bool stereovision::loadCalibParam(const string &_fileName)
 {
-
     cv::FileStorage input_file(_fileName, cv::FileStorage::READ);
 
     input_file["left_camera_matrix"] >> this->calibParam.left_K;
@@ -466,7 +492,8 @@ bool stereovision::loadCalibParam(const string &_fileName)
     return 1;
 }
 
-bool stereovision::recityfImages(Mat &_leftImage, Mat &_rightImage, Mat &_outLeftImage, Mat &_outRightImage, Mat &_bothImages) {
+/// Usunięcie zniekształceń i rektyfikacja
+bool stereovision::rectifyImages(Mat &_leftImage, Mat &_rightImage, Mat &_outLeftImage, Mat &_outRightImage, Mat &_bothImages) {
 
     Mat leftMapX,leftMapY,rightMapX,rightMapY;
     Mat leftUndistort, rightUndistort;
@@ -478,8 +505,6 @@ bool stereovision::recityfImages(Mat &_leftImage, Mat &_rightImage, Mat &_outLef
 
     cv::remap(_leftImage, leftUndistort, leftMapX, leftMapY, cv::INTER_LINEAR);
     cv::remap(_rightImage, rightUndistort, rightMapX, rightMapY, cv::INTER_LINEAR);
-
-
 
     _outLeftImage = leftUndistort.clone();
     _outRightImage = rightUndistort.clone();
@@ -494,6 +519,7 @@ bool stereovision::recityfImages(Mat &_leftImage, Mat &_rightImage, Mat &_outLef
     return 1;
 }
 
+/// Semiglobalny algorytm budowania mapy dysparycji
 bool stereovision::computeSGBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_referenceImage){
 
     Mat left_for_matcher, right_for_matcher;
@@ -521,11 +547,7 @@ bool stereovision::computeSGBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_
     left_for_matcher = _leftRectImage.clone();
     right_for_matcher = _rightRectImage.clone();
 
-
     Ptr<StereoSGBM> sgbm = StereoSGBM::create(0,this->ndisparities,this->SADWindowSize);
-
-    int cn = _leftRectImage.channels();
-    int P1 = 8*cn*this->SADWindowSize*this->SADWindowSize, P2 = 32*cn*this->SADWindowSize*this->SADWindowSize;
 
     sgbm->setP1(24*this->SADWindowSize*this->SADWindowSize);
     sgbm->setP2(96*this->SADWindowSize*this->SADWindowSize);
@@ -543,10 +565,9 @@ bool stereovision::computeSGBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_
     sgbm-> compute(left_for_matcher, right_for_matcher,left_disp);
     matching_time = ((double)getTickCount() - matching_time)/getTickFrequency();
 
-
     ROI = computeROI(left_for_matcher.size(),sgbm);
     wls_filter = createDisparityWLSFilterGeneric(false);
-    wls_filter->setDepthDiscontinuityRadius((int)ceil(0.5*getSADWindowSize()));
+    wls_filter->setDepthDiscontinuityRadius((int)ceil(0.5*this->SADWindowSize));
 
     /// [filtering]
     wls_filter->setLambda(this->lambda);
@@ -568,6 +589,7 @@ bool stereovision::computeSGBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_
     return 1;
 }
 
+/// Globalny algorytm budowania mapy dysparycji
 bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_referenceImage){
 
     Mat left_for_matcher, right_for_matcher;
@@ -579,9 +601,7 @@ bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_re
     Ptr<DisparityWLSFilter> wls_filter;
     double matching_time, filtering_time;
 
-
     Size img_size = _referenceImage.size();
-
 
     Mat disp, disp8;
 
@@ -615,14 +635,13 @@ bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_re
 
     wls_filter = createDisparityWLSFilter(sbm);
 
-    cout << getSADWindowSize() << endl;
     matching_time = (double)getTickCount();
     sbm-> compute(left_for_matcher, right_for_matcher,left_disp);
     matching_time = ((double)getTickCount() - matching_time)/getTickFrequency();
 
     ROI = computeROI(left_for_matcher.size(),sbm);
     wls_filter = createDisparityWLSFilterGeneric(false);
-    wls_filter->setDepthDiscontinuityRadius((int)ceil(0.5*getSADWindowSize()));
+    wls_filter->setDepthDiscontinuityRadius((int)ceil(0.5*this->SADWindowSize));
 
     /// [filtering]
     wls_filter->setLambda(this->lambda);
@@ -634,7 +653,6 @@ bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_re
     /// [filtering]
     conf_map = wls_filter->getConfidenceMap();
 
-
     cout.precision(2);
     cout<<"--Matching time:  "<<matching_time<<"s"<<endl;
     cout<<"--Filtering time: "<<filtering_time<<"s"<<endl;
@@ -644,7 +662,44 @@ bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_re
     return 1;
 }
 
+/// Metoda do wyliczania obszaru używanego w wyliczaniu dysparycji
+Rect stereovision::computeROI(Size2i src_sz, Ptr<StereoMatcher> matcher_instance)
+{
+    int min_disparity = matcher_instance->getMinDisparity();
+    int num_disparities = matcher_instance->getNumDisparities();
+    int block_size = matcher_instance->getBlockSize();
 
+    int bs2 = block_size/2;
+    int minD = min_disparity, maxD = min_disparity + num_disparities - 1;
+
+    int xmin = maxD + bs2;
+    int xmax = src_sz.width + minD - bs2;
+    int ymin = bs2;
+    int ymax = src_sz.height - bs2;
+
+    Rect r(xmin, ymin, xmax - xmin, ymax - ymin);
+    return r;
+}
+
+/// Metoda do zapisu wyników w postaci filmu
+void record(cv::Mat &image)
+{
+    static cv::VideoWriter writer;
+    if (!writer.isOpened())
+    {
+        int codec = CV_FOURCC('M','J','P','G');
+        double fps = 15.0;
+        writer.open("stereo_result.avi",codec,fps,image.size());
+    }
+    if(writer.isOpened())
+    {
+        writer.write(image);
+    }
+    else
+        printf("wideo write failed\n");
+}
+
+/// Wizualizacja dysparycji
 void stereovision::visualizeResults(const Mat& _rawDisparity, const Mat& _filteredDisparity)
 {
     Mat raw_disp_vis, filtered_disp_vis, result;
@@ -663,7 +718,6 @@ void stereovision::visualizeResults(const Mat& _rawDisparity, const Mat& _filter
     imshow("filtered disparity", filtered_disp_vis);
 
     applyColorMap(filtered_disp_vis,result, COLORMAP_JET);
-
     if(this->mouseInput.size().width != 0 || this->mouseInput.size().height != 0) {
         std::ostringstream ss;
         ss << distance;
@@ -673,15 +727,17 @@ void stereovision::visualizeResults(const Mat& _rawDisparity, const Mat& _filter
                 FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(0, 0, 0), 1, CV_AA);
         rectangle(result, this->mouseInput, Scalar(0, 0, 0), 2);
     }
-
     imshow("Disparity result", result);
+
+    char key = waitKey(1) & 0xff;
+    if(key == 'r') record(result);
 }
 
+/// Metoda wyliczająca odległość na podstawie macierzy reprojekcji oraz dysparycji
 float stereovision::reprojectTo3DPoint(const Rect& ROI, const Mat& _disparityMap)
 {
     Mat Q_32F;
     this->calibParam.Q.convertTo(Q_32F,CV_32F);
-
 
     Mat disparity32F;
     _disparityMap.convertTo(disparity32F,CV_32F,1./16);
@@ -698,24 +754,10 @@ float stereovision::reprojectTo3DPoint(const Rect& ROI, const Mat& _disparityMap
     vec_tmp(3)=1;
     vec_tmp = Q_32F*vec_tmp;
     vec_tmp /= vec_tmp(3);
-
-
-//    for(int y=0; y<disparity32F.rows; ++y) {
-//        for(int x=0; x<disparity32F.cols; ++x) {
-//            vec_tmp(0)=x; vec_tmp(1)=y; vec_tmp(2)=disparity32F.at<float>(y,x); vec_tmp(3)=1;
-//            vec_tmp = Q_32F*vec_tmp;
-//            vec_tmp /= vec_tmp(3);
-//            cv::Vec3f &point = XYZ.at<cv::Vec3f>(y,x);
-//            point[0] = vec_tmp(0);
-//            point[1] = vec_tmp(1);
-//            point[2] = vec_tmp(2);
-//        }
-//    }
-
     return vec_tmp(2);
 }
 
-
+/// Generacja chmury punktów
 void stereovision::visualizePointCloud(const Mat& _disparityMap, const Mat& _colorMap)
 {
 //    Mat colorMap = _colorMap;
@@ -824,6 +866,7 @@ void stereovision::visualizePointCloud(const Mat& _disparityMap, const Mat& _col
 //    cout << "\n rvec " << pose3d.rotation() << "trans" << pose3d.translation() << endl;
 }
 
+/// Metoda wyświetlająca okno sterowania parametrami stereowizji
 bool stereovision::displayTrackbar(){
 
     /// Control BM parameters Winodw
@@ -887,10 +930,10 @@ bool stereovision::displayTrackbar(){
     waitKey(20);
 }
 
-
+/// Metoda wczytująca wcześniej zapisane zdjęcia kamery lewej i prawej
 bool stereovision::readFromImage(Mat &_leftRectImage, Mat &_rightRectImage)
 {
-    static VideoCapture capL("images/I1_%06d.png"),capR("images/I2_%06d.png");
+    static VideoCapture capL("../images/I1_%06d.png"),capR("../images/I2_%06d.png");
 
         std::cout << "Init done" << std::endl;
 
@@ -909,98 +952,10 @@ bool stereovision::readFromImage(Mat &_leftRectImage, Mat &_rightRectImage)
     return 1;
 }
 
-int stereovision::getNdisparities() const {
-    return ndisparities;
-}
-
-void stereovision::setNdisparities(int ndisparities) {
-    stereovision::ndisparities = ndisparities;
-}
-
-int stereovision::getSADWindowSize() const {
-    return SADWindowSize;
-}
-
-void stereovision::setSADWindowSize(int SADWindowSize) {
-    stereovision::SADWindowSize = SADWindowSize;
-}
-
-int stereovision::getMinDisparity() const {
-    return minDisparity;
-}
-
-void stereovision::setMinDisparity(int minDisparity) {
-    stereovision::minDisparity = minDisparity;
-}
-
-int stereovision::getUniqRatio() const {
-    return uniqRatio;
-}
-
-void stereovision::setUniqRatio(int uniqRatio) {
-    stereovision::uniqRatio = uniqRatio;
-}
-
-int stereovision::getSpeckWinSize() const {
-    return speckWinSize;
-}
-
-void stereovision::setSpeckWinSize(int speckWinSize) {
-    stereovision::speckWinSize = speckWinSize;
-}
-
-int stereovision::getSpeckRange() const {
-    return speckRange;
-}
-
-void stereovision::setSpeckRange(int speckRange) {
-    stereovision::speckRange = speckRange;
-}
-
-int stereovision::getDispMaxDiff() const {
-    return dispMaxDiff;
-}
-
-void stereovision::setDispMaxDiff(int dispMaxDiff) {
-    stereovision::dispMaxDiff = dispMaxDiff;
-}
-
-int stereovision::getPreFilterCap() const {
-    return preFilterCap;
-}
-
-void stereovision::setPreFilterCap(int preFilterCap) {
-    stereovision::preFilterCap = preFilterCap;
-}
-
-int stereovision::getPreFilterSize() const {
-    return preFilterSize;
-}
-
-void stereovision::setPreFilterSize(int preFilterSize) {
-    stereovision::preFilterSize = preFilterSize;
-}
-
-int stereovision::getTextureTreshold() const {
-    return textureTreshold;
-}
-
-void stereovision::setTextureTreshold(int textureTreshold) {
-    stereovision::textureTreshold = textureTreshold;
-}
-
-
-/// OpenCV trackbar method
+/// Funkcja do obsługi zmiany parametrów w oknie edycji
 void trackbarLink(int v, void *ptr) {};
 
-void onMousePointCallback(int _evt, int _x, int _y, int _flags, void *_param) {
-    if(_evt != CV_EVENT_LBUTTONDOWN)
-        return;
-
-    Point* _posPtr = (Point*)_param;
-    *_posPtr = Point(_x, _y);
-}
-
+/// Obsługa myszki w oknie "Result"
 void onMouseRectCallback(int _evt, int _x, int _y, int _flags, void *_param)
 {
     static bool _clicked = false;
