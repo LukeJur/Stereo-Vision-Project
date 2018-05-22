@@ -85,7 +85,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
                     object_points.push_back(obj);
                 }
 
-                std::cout << "Collected " << (int) image_points.size() << " from " << n_boards << " required \n"
+                std::cout << "Collected " << (int) image_points.size() << " from " << n_boards - 4 << " required \n"
                           << std::endl;
             }
             /// Wizualizacja procesu kalibracji
@@ -104,10 +104,10 @@ bool stereovision::calibrateStereo(const string &_fileName)
         /// Jeżeli błąd jest duży można ponowić proces
         std::cout << "Parameters Calculated with error: " << err << std::endl;
         std::cout << "Press 'r' to repeat else press 'b' " << std::endl;
-
-        std::cin >> key;
-        std::cout << key << std::endl;
-
+        key = 0;
+        while(key != 'r' && key != 'b') {
+            std::cin >> key;
+        }
         if (key == 'r') {
             std::cout <<"Repeating calibration" << std::endl;
             repeat = true;
@@ -125,11 +125,10 @@ bool stereovision::calibrateStereo(const string &_fileName)
     /// Wyliczenie parametrów kamery na podstawie macierzy i ich wyświetlenie
     double aperWidth, aperHeight, fovx, fovy, focalLength,aspectRatio;
     Point2d principPoint;
-    calibrationMatrixValues(calibParam.left_K, leftImage.size(), aperWidth, aperHeight, fovx, fovy, focalLength, principPoint, aspectRatio);
+    calibrationMatrixValues(left_intrinsic_matrix, leftImage.size(), aperWidth, aperHeight, fovx, fovy, focalLength, principPoint, aspectRatio);
 
     cout << "Calculated left camera parameters:" << endl << endl;
-    cout << setprecision(4);
-    cout << "Focal length: " << focalLength << endl;
+    cout << "Focal length: " << setprecision(4) <<focalLength << endl;
     cout << "Aperture width: " << aperWidth << endl;
     cout << "Aperture height: " << aperHeight << endl;
     cout << "FOV x: " << fovx << endl;
@@ -219,7 +218,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
                     image_points.push_back(cornersR);
                     object_points.push_back(obj);
                 }
-                std::cout << "Collected " << (int) image_points.size() << " from " << n_boards << " required \n"
+                std::cout << "Collected " << (int) image_points.size() << " from " << n_boards - 4<< " required \n"
                           << std::endl;
             }
 
@@ -242,8 +241,10 @@ bool stereovision::calibrateStereo(const string &_fileName)
         std::cout << "Parameters Calculated with error: " << errR << std::endl;
         std::cout << "Press 'r' to repeat else press 'b' " << std::endl;
 
-        std::cin >> key;
-        std::cout << key << std::endl;
+        key = 0;
+        while(key != 'r' && key != 'b') {
+            std::cin >> key;
+        }
 
         if (key == 'r') {
             std::cout <<"Repeating calibration" << std::endl;
@@ -261,7 +262,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
     }while (repeat);
 
     /// Wyliczenie parametrów kamery na podstawie macierzy i ich wyświetlenie
-    calibrationMatrixValues(calibParam.right_K, rightImage.size(), aperWidth, aperHeight, fovx, fovy, focalLength, principPoint, aspectRatio);
+    calibrationMatrixValues(right_intrinsic_matrix, rightImage.size(), aperWidth, aperHeight, fovx, fovy, focalLength, principPoint, aspectRatio);
 
     cout << "Calculated right camera parameters:" << endl << endl;
     cout << setprecision(4);
@@ -362,7 +363,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
             key = waitKey(1) & 0xff;
 
             /// Zapisanie znalezionych rogów oraz stworzenie wektora z rzeczywistymi współrzędnymi
-            if (foundL && foundR && timestamp - last_timestamp > 3 && key == 'n') {
+            if (foundL && foundR && timestamp - last_timestamp > 2 && key == 'n') {
 
 
                 vector<Point3f> obj;
@@ -417,17 +418,20 @@ bool stereovision::calibrateStereo(const string &_fileName)
             return false;
         }
 
+        std::cin.clear();
+//        std::cin.ignore(INT_MAX);
+
         /// Jeżeli błąd kalibracji jest duży można powtórzyć proces
         std::cout << "Press 'r' to repeat else press 'b' " << std::endl;
-        key = 0;
-        std::cin >> key;
-        std::cout << key << std::endl;
-
-        if (key == 'r') {
+        char keyIn;
+        while(keyIn != 'r' && keyIn != 'b') {
+            std::cin >> keyIn;
+        }
+        if (keyIn == 'r') {
             std::cout <<"Repeating calibration" << std::endl;
             repeat = true;
         }
-        if(key == 'b')
+        if(keyIn == 'b')
             repeat = false;
 
         /// Zerowanie kontenerów
@@ -453,6 +457,7 @@ bool stereovision::calibrateStereo(const string &_fileName)
     calibParam.left_R = left_R;
     calibParam.right_P = right_P;
     calibParam.right_R = right_R;
+    calibParam.Q = Q;
 
     /// Zapisanie wyniku kalibracji do zewnętrznego pliku
     cv::FileStorage fs(_fileName, FileStorage::WRITE);
@@ -471,8 +476,10 @@ bool stereovision::calibrateStereo(const string &_fileName)
 /// Wczytanie pliku z parametrami kalibracji
 bool stereovision::loadCalibParam(const string &_fileName)
 {
+    /// Deklaracja obiektu do wczytania/zapisu pliku
     cv::FileStorage input_file(_fileName, cv::FileStorage::READ);
 
+    /// Wczytanie parametrów z pliku do pamięci komputera
     input_file["left_camera_matrix"] >> this->calibParam.left_K;
     input_file["left_distortion_coefficients"] >> this->calibParam.left_D;
     input_file["right_camera_matrix"] >> this->calibParam.right_K;
@@ -495,9 +502,11 @@ bool stereovision::loadCalibParam(const string &_fileName)
 /// Usunięcie zniekształceń i rektyfikacja
 bool stereovision::rectifyImages(Mat &_leftImage, Mat &_rightImage, Mat &_outLeftImage, Mat &_outRightImage, Mat &_bothImages) {
 
+    /// Deklaracja kontenerów macierzy i obrazów
     Mat leftMapX,leftMapY,rightMapX,rightMapY;
     Mat leftUndistort, rightUndistort;
 
+    /// Usunięcie zniekształceń i rektyfikacja
     cv::initUndistortRectifyMap(this->calibParam.left_K, this->calibParam.left_D, this->calibParam.left_R,
                                 this->calibParam.left_P, _leftImage.size(), CV_32FC1, leftMapX, leftMapY);
     cv::initUndistortRectifyMap(this->calibParam.right_K, this->calibParam.right_D, this->calibParam.right_R,
@@ -506,11 +515,13 @@ bool stereovision::rectifyImages(Mat &_leftImage, Mat &_rightImage, Mat &_outLef
     cv::remap(_leftImage, leftUndistort, leftMapX, leftMapY, cv::INTER_LINEAR);
     cv::remap(_rightImage, rightUndistort, rightMapX, rightMapY, cv::INTER_LINEAR);
 
+    /// Obrazy wyjściowe
     _outLeftImage = leftUndistort.clone();
     _outRightImage = rightUndistort.clone();
 
     hconcat(leftUndistort,rightUndistort,_bothImages);
 
+    /// Rysowanie lini epipolarnych
     for(int lineInterval = 10; lineInterval < _bothImages.rows; lineInterval += 40)
     {
         Point2i l(0, lineInterval), r(_bothImages.cols, lineInterval);
@@ -705,7 +716,8 @@ void stereovision::visualizeResults(const Mat& _rawDisparity, const Mat& _filter
     Mat raw_disp_vis, filtered_disp_vis, result;
 
     float distance;
-    if(this->mouseInput.height > 0 || this->mouseInput.width > 0) {
+    if(this->mouseInput.height > 0 && this->mouseInput.width > 0) {
+
 
         distance = reprojectTo3DPoint(this->mouseInput, _filteredDisparity);
     }
@@ -729,8 +741,9 @@ void stereovision::visualizeResults(const Mat& _rawDisparity, const Mat& _filter
     }
     imshow("Disparity result", result);
 
-    char key = waitKey(1) & 0xff;
-    if(key == 'r') record(result);
+    //char key = waitKey(1) & 0xff;
+    //if(key == 'r')
+    record(result);
 }
 
 /// Metoda wyliczająca odległość na podstawie macierzy reprojekcji oraz dysparycji

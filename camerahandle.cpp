@@ -277,8 +277,13 @@ cv::Mat readLeftFrame()
         std::cout << "Video caputre not opened error" << std::endl;
         exit(-1);
     }
-    /// Wyłączenie opcji AutoFocus w kamerze
-    leftCaputre.set(CV_CAP_PROP_AUTOFOCUS,0);
+    static bool firstCall;
+
+    if(!firstCall) {
+        /// Wyłączenie opcji AutoFocus w kamerze
+        leftCaputre.set(CV_CAP_PROP_AUTOFOCUS, 0);
+        firstCall = true;
+    }
     return image;
 }
 
@@ -296,8 +301,13 @@ cv::Mat readRightFrame()
         std::cout << "Video caputre not opened error" << std::endl;
         exit(-1);
     }
+    static bool firstCall;
+
     /// Wyłączenie opcji AutoFocus w kamerze
-    rightCapture.set(CV_CAP_PROP_AUTOFOCUS,0);
+    if(!firstCall) {
+        rightCapture.set(CV_CAP_PROP_AUTOFOCUS, 0);
+        firstCall = true;
+    }
     return image;
 }
 

@@ -9,25 +9,21 @@ using namespace VRmUsbCamCPP;
 
 /// Deklaracja możliwych parametrów wejściowych
 const String keys =
-                "{help h usage ? |                                | print this message          }"
-                "{board_w        |9                               | board width                 }"
-                "{board_h        |6                               | board height                }"
-                "{n_boards       |12                              | number of board pic         }"
-                "{squaresize     |0.026                           | size of board square        }"
-                "{calibrate      |                                | Calibrate?                  }"
-                "{paramsFilename |../Parameters/CameraParams.yml  | path to param file          }"
-                "{reset          |                                | reset cameras               }"
-                "{algorithm      |SGBM                            | select stereo algorithm     }"
-                "{r              |                                | read from files?            }"
-                "{webcam         |                                | UseWebCam                   }"
+                "{help h usage ? |                                | Help message - Input parameters }"
+                "{board_w        |9                               | Board width                     }"
+                "{board_h        |6                               | Board height                    }"
+                "{n_boards       |12                              | Number of board pictures        }"
+                "{squaresize     |0.026                           | Size of board square [m]        }"
+                "{calibrate      |                                | Calibrate cameras               }"
+                "{paramsFilename |../Parameters/CameraParams.yml  | Path to parameters file         }"
+                "{reset          |                                | Reset cameras                   }"
+                "{algorithm      |SGBM                            | Select stereo algorithm         }"
+                "{r              |                                | Read from files                 }"
+                "{webcam         |                                | Use webcam                      }"
 ;
 
 int main(int argc, char const *argv[])
 {
-    std::cout<< "========================================================" << std::endl
-             << "===               Stereo Vision Project              ===" << std::endl
-             << "========================================================" << std::endl;
-
     /// Deklaracja obiektu wczytującego parametry wejściowe
     CommandLineParser parser (argc, argv, keys);
     parser.about("Stereo Vision application");
@@ -43,6 +39,11 @@ int main(int argc, char const *argv[])
         parser.printErrors();
         return 0;
     }
+
+    std::cout<< "========================================================" << std::endl
+             << "===               Stereo Vision Project              ===" << std::endl
+             << "========================================================" << std::endl;
+
     /// Wczytanie parametrów do pamięci programu
     int board_w = parser.get<int>("board_w");
     int board_h = parser.get<int>("board_h");
