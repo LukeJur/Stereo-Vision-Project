@@ -533,33 +533,38 @@ bool stereovision::rectifyImages(Mat &_leftImage, Mat &_rightImage, Mat &_outLef
 /// Semiglobalny algorytm budowania mapy dysparycji
 bool stereovision::computeSGBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_referenceImage){
 
+    /// Deklaracja kontenerów obrazów i map dysparycji
     Mat left_for_matcher, right_for_matcher;
-    Mat left_disp,right_disp;
-    Mat filtered_disp;
+    Mat left_disp, filtered_disp, disp,disp8;
     Mat conf_map = Mat(_leftRectImage.rows,_leftRectImage.cols,CV_8U);
     conf_map = Scalar(255);
     Rect ROI;
+
+    /// Deklaracja obiektu filtra
     Ptr<DisparityWLSFilter> wls_filter;
+
+    /// Zmienne czasowe
     double matching_time, filtering_time;
 
+    /// Wczytanie rozmiaru obrazu wejściowego
     Size img_size = _referenceImage.size();
 
-    Mat disp,disp8;
-
+    /// Ograniczenie parametrów do prawidłowych wartości
     this->SADWindowSize = this->SADWindowSize > 3 ? this->SADWindowSize : 5;
     this->ndisparities = this->ndisparities > 0 ? this->ndisparities : ((img_size.width/8) + 15) & -16;
-
     if (this->SADWindowSize % 2 == 0)
         this->SADWindowSize += 1;
-
     while (!((this->ndisparities % 16) == 0) || this->ndisparities == 0)
         this->ndisparities += 1;
 
+    /// Wczytanie obrazów do generowania dysparycji
     left_for_matcher = _leftRectImage.clone();
     right_for_matcher = _rightRectImage.clone();
 
+    /// Deklaracja obiektu liczącego dysparycje
     Ptr<StereoSGBM> sgbm = StereoSGBM::create(0,this->ndisparities,this->SADWindowSize);
 
+    /// Ustawianie parametrów generowania mapy dysparycji
     sgbm->setP1(24*this->SADWindowSize*this->SADWindowSize);
     sgbm->setP2(96*this->SADWindowSize*this->SADWindowSize);
     sgbm->setMinDisparity(this->minDisparity - 200);
@@ -570,32 +575,34 @@ bool stereovision::computeSGBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_
     sgbm->setPreFilterCap(this->preFilterCap);
     sgbm->setMode(StereoSGBM::MODE_HH4);
 
+    /// Utworzenie obiektu filtra
     wls_filter = createDisparityWLSFilter(sgbm);
 
+    /// Wyliczenie mapy dysparycji
     matching_time = (double)getTickCount();
     sgbm-> compute(left_for_matcher, right_for_matcher,left_disp);
     matching_time = ((double)getTickCount() - matching_time)/getTickFrequency();
 
+    /// Ustawienie parametrów filtra
     ROI = computeROI(left_for_matcher.size(),sgbm);
     wls_filter = createDisparityWLSFilterGeneric(false);
     wls_filter->setDepthDiscontinuityRadius((int)ceil(0.5*this->SADWindowSize));
-
-    /// [filtering]
     wls_filter->setLambda(this->lambda);
     wls_filter->setSigmaColor(float(this->sigma/100));
-    filtering_time = (double)getTickCount();
 
+    /// Filtrowanie mapy dysparycji
+    filtering_time = (double)getTickCount();
     wls_filter->filter(left_disp,_leftRectImage,filtered_disp);
     filtering_time = ((double)getTickCount() - filtering_time)/getTickFrequency();
-    /// [filtering]
     conf_map = wls_filter->getConfidenceMap();
 
+    /// Wypisanie czasu liczenia i filtrowania mapy
     cout.precision(2);
     cout<<"--Matching time:  "<<matching_time<<"s"<<endl;
     cout<<"--Filtering time: "<<filtering_time<<"s"<<endl;
 
-   visualizeResults(left_disp,filtered_disp);
-
+    /// Wywołanie metody wizualizacji wyników
+    visualizeResults(left_disp,filtered_disp);
 
     return 1;
 }
@@ -603,22 +610,25 @@ bool stereovision::computeSGBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_
 /// Globalny algorytm budowania mapy dysparycji
 bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_referenceImage){
 
+    /// Deklaracja kontenerów obrazów i map dysparycji
     Mat left_for_matcher, right_for_matcher;
-    Mat left_disp,right_disp;
-    Mat filtered_disp;
+    Mat left_disp, filtered_disp, disp, disp8;
     Mat conf_map = Mat(_leftRectImage.rows,_leftRectImage.cols,CV_8U);
     conf_map = Scalar(255);
     Rect ROI;
+
+    /// Deklaracja obiektu filtra
     Ptr<DisparityWLSFilter> wls_filter;
+
+    /// Zmienne czasowe
     double matching_time, filtering_time;
 
+    /// Wczytanie rozmiaru obrazu wejściowego
     Size img_size = _referenceImage.size();
 
-    Mat disp, disp8;
-
+    /// Ograniczenie parametrów do prawidłowych wartości
     this->SADWindowSize = this->SADWindowSize > 4 ? this->SADWindowSize : 5;
     this->ndisparities = this->ndisparities > 0 ? this->ndisparities : ((img_size.width/8) + 15) & -16;
-
     if (this->SADWindowSize % 2 == 0)
             this->SADWindowSize += 1;
     while (!((this->ndisparities % 16) == 0) || this->ndisparities == 0)
@@ -626,7 +636,10 @@ bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_re
         this->ndisparities += 1;
     }
 
+    /// Deklaracja obiektu liczącego dysparycje
     Ptr<StereoBM> sbm = StereoBM::create(this->ndisparities,this->SADWindowSize > 0 ? this->SADWindowSize : 9);
+
+    /// Ustawianie parametrów generowania mapy dysparycji
     sbm->setROI1(ROI1);
     sbm->setROI1(ROI2);
     sbm->setPreFilterSize(this->preFilterSize % 2 == 0 ? this->preFilterSize += 1: this->preFilterSize );
@@ -638,36 +651,42 @@ bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_re
     sbm->setSpeckleRange(this->speckRange);
     sbm->setDisp12MaxDiff(this->dispMaxDiff);
 
+    /// Wczytanie obrazów do generowania dysparycji
     left_for_matcher = _leftRectImage.clone();
     right_for_matcher = _rightRectImage.clone();
 
+    /// Zamiana formatu obrazu na skale szarości
     cvtColor(left_for_matcher,  left_for_matcher,  COLOR_BGR2GRAY);
     cvtColor(right_for_matcher, right_for_matcher, COLOR_BGR2GRAY);
 
+    /// Utworzenie obiektu filtra
     wls_filter = createDisparityWLSFilter(sbm);
 
+    /// Wyliczenie mapy dysparycji
     matching_time = (double)getTickCount();
     sbm-> compute(left_for_matcher, right_for_matcher,left_disp);
     matching_time = ((double)getTickCount() - matching_time)/getTickFrequency();
 
     ROI = computeROI(left_for_matcher.size(),sbm);
+
+    /// Ustawienie parametrów filtra
     wls_filter = createDisparityWLSFilterGeneric(false);
     wls_filter->setDepthDiscontinuityRadius((int)ceil(0.5*this->SADWindowSize));
-
-    /// [filtering]
     wls_filter->setLambda(this->lambda);
     wls_filter->setSigmaColor(float(this->sigma/100));
-    filtering_time = (double)getTickCount();
 
+    /// Filtrowanie mapy dysparycji
+    filtering_time = (double)getTickCount();
     wls_filter->filter(left_disp,_leftRectImage,filtered_disp);
     filtering_time = ((double)getTickCount() - filtering_time)/getTickFrequency();
-    /// [filtering]
     conf_map = wls_filter->getConfidenceMap();
 
+    /// Wypisanie czasu liczenia i filtrowania mapy
     cout.precision(2);
     cout<<"--Matching time:  "<<matching_time<<"s"<<endl;
     cout<<"--Filtering time: "<<filtering_time<<"s"<<endl;
 
+    /// Wywołanie metody wizualizacji wyników
     visualizeResults(left_disp,filtered_disp);
 
     return 1;
@@ -676,19 +695,22 @@ bool stereovision::computeBM(Mat &_leftRectImage, Mat &_rightRectImage, Mat &_re
 /// Metoda do wyliczania obszaru używanego w wyliczaniu dysparycji
 Rect stereovision::computeROI(Size2i src_sz, Ptr<StereoMatcher> matcher_instance)
 {
+    /// Wczytanie/wyliczenie parametrów
     int min_disparity = matcher_instance->getMinDisparity();
     int num_disparities = matcher_instance->getNumDisparities();
     int block_size = matcher_instance->getBlockSize();
-
     int bs2 = block_size/2;
     int minD = min_disparity, maxD = min_disparity + num_disparities - 1;
 
+    /// Ustawienie rozmiarów obszaru
     int xmin = maxD + bs2;
     int xmax = src_sz.width + minD - bs2;
     int ymin = bs2;
     int ymax = src_sz.height - bs2;
 
+    /// Utworzenie obiektu obszaru
     Rect r(xmin, ymin, xmax - xmin, ymax - ymin);
+
     return r;
 }
 
@@ -713,53 +735,70 @@ void record(cv::Mat &image)
 /// Wizualizacja dysparycji
 void stereovision::visualizeResults(const Mat& _rawDisparity, const Mat& _filteredDisparity)
 {
+    /// Deklaracja kontenerów obrazów
     Mat raw_disp_vis, filtered_disp_vis, result;
 
+    /// Deklaracja zmiennej wyniku odległości
     float distance;
+
+    /// Warunek sprawdzający rozmiar wybranego obszaru w oknie
     if(this->mouseInput.height > 0 && this->mouseInput.width > 0) {
-
-
+        /// Metoda wyliczająca odległość
         distance = reprojectTo3DPoint(this->mouseInput, _filteredDisparity);
     }
+
+    /// Wizualizacja mapy dysparycji
     getDisparityVis(_rawDisparity,raw_disp_vis,1);
     namedWindow("raw disparity", WINDOW_AUTOSIZE);
     imshow("raw disparity", raw_disp_vis);
 
+    /// Wizualizacja mapy dysparycji po filtracji
     getDisparityVis(_filteredDisparity,filtered_disp_vis,this->colorScale/100);
     namedWindow("filtered disparity", WINDOW_AUTOSIZE);
     imshow("filtered disparity", filtered_disp_vis);
 
+    /// Zmiana barwy kolorów dla lepszej wizualizacji
     applyColorMap(filtered_disp_vis,result, COLORMAP_JET);
+
+    /// Rysowanie obszaru i wypisanie wyniku w oknie
     if(this->mouseInput.size().width != 0 || this->mouseInput.size().height != 0) {
         std::ostringstream ss;
         ss << distance;
         std::string text(ss.str());
-
         putText(result, text, cvPoint(this->mouseInput.x, this->mouseInput.y - 10),
                 FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(0, 0, 0), 1, CV_AA);
         rectangle(result, this->mouseInput, Scalar(0, 0, 0), 2);
     }
+
+    /// Wizualizacja wyniku w oknie
     imshow("Disparity result", result);
 
-    //char key = waitKey(1) & 0xff;
-    //if(key == 'r')
     record(result);
 }
 
 /// Metoda wyliczająca odległość na podstawie macierzy reprojekcji oraz dysparycji
 float stereovision::reprojectTo3DPoint(const Rect& ROI, const Mat& _disparityMap)
 {
+    /// Zmiana formatu macierzy projekcji na typ zmiennoprzecinkowy
     Mat Q_32F;
     this->calibParam.Q.convertTo(Q_32F,CV_32F);
 
+    /// Deklaracja kontera mapy dysparycji
     Mat disparity32F;
+
+    /// Zmiana formatu mapy dysparycji na typ zmiennoprzecinkowy
     _disparityMap.convertTo(disparity32F,CV_32F,1./16);
+
+    /// Wczytanie zadanego obszaru
     disparity32F = disparity32F(ROI);
+
+    /// Wczytanie mapy dysparycji
     Mat measureMat = disparity32F.clone();
+
+    /// Wyliczenie średniej wartości dysparycji
     Scalar m = mean(measureMat);
 
-    cout << "Mean value"<<m[0] << endl;
-
+    /// Wyliczenie odległości w metrach
     cv::Mat_<float> vec_tmp(4,1);
     vec_tmp(0)=ROI.x;
     vec_tmp(1)=ROI.y;
@@ -767,6 +806,7 @@ float stereovision::reprojectTo3DPoint(const Rect& ROI, const Mat& _disparityMap
     vec_tmp(3)=1;
     vec_tmp = Q_32F*vec_tmp;
     vec_tmp /= vec_tmp(3);
+
     return vec_tmp(2);
 }
 
@@ -882,12 +922,16 @@ void stereovision::visualizePointCloud(const Mat& _disparityMap, const Mat& _col
 /// Metoda wyświetlająca okno sterowania parametrami stereowizji
 bool stereovision::displayTrackbar(){
 
-    /// Control BM parameters Winodw
+    /// Deklaracja okna sterowania parametrami
     namedWindow("Stereo parameters control",WINDOW_FREERATIO);
 
+    /// Wczytanie loga
     Mat logo = imread("../logo.jpg");
+
+    /// Wizualizacja okna
     imshow("Stereo parameters control", logo);
 
+    /// Deklaracja suwaków poszczególnych parametrów
     char dispNumb[50];
     sprintf(dispNumb, "Disparity range");
     createTrackbar(dispNumb, "Stereo parameters control", &ndisparities, 500, trackbarLink);
@@ -940,16 +984,16 @@ bool stereovision::displayTrackbar(){
     sprintf(colorGain, "Color Gain");
     createTrackbar(colorGain, "Stereo parameters control", &colorScale, 1000 , trackbarLink);
 
-    waitKey(20);
+    waitKey(1);
 }
 
 /// Metoda wczytująca wcześniej zapisane zdjęcia kamery lewej i prawej
 bool stereovision::readFromImage(Mat &_leftRectImage, Mat &_rightRectImage)
 {
+    /// Deklaracja obiektu wczytującego obrazu
     static VideoCapture capL("../images/I1_%06d.png"),capR("../images/I2_%06d.png");
 
-        std::cout << "Init done" << std::endl;
-
+        /// Obsługa błędu wczytania obrazów
         if (!capL.isOpened()) {// check if we succeeded
             std::cout << "Error reading images L" << std::endl;
             return -1;
@@ -959,13 +1003,14 @@ bool stereovision::readFromImage(Mat &_leftRectImage, Mat &_rightRectImage)
             return -1;
         }
 
+        /// Wczytanie obrazów z pliku
         capL >> _leftRectImage;
         capR >> _rightRectImage;
 
     return 1;
 }
 
-/// Funkcja do obsługi zmiany parametrów w oknie edycji
+/// Pusta funkcja do obsługi zmiany parametrów w oknie edycji
 void trackbarLink(int v, void *ptr) {};
 
 /// Obsługa myszki w oknie "Result"
